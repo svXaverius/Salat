@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e5ddd5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            width: 90%;
+            max-width: 600px;
+            height: 100vh;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            padding: 10px;
+            margin: 10px 0; /* Increased margin to double the vertical space */
+            border-radius: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+            position: relative;
+        }
+        .user {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+        }
+        .bot {
+            background-color: #ece5dd;
+            align-self: flex-start;
+        }
+        .timestamp {
+            font-size: 0.5em;
+            color: #888;
+            position: absolute;
+            top: -15px;
+            right: 10px;
+            white-space: nowrap;
+        }
+        .input-container {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            background-color: #f0f0f0;
+        }
+        textarea {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            resize: none;
+            overflow: hidden;
+            max-height: 100px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #25d366;
+            color: white;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+        .typing {
+            display: flex;
+            align-items: center;
+            margin: 10px 0; /* Increased margin to match the message spacing */
+            padding: 10px;
+            border-radius: 10px;
+            background-color: #ece5dd;
+            max-width: 80%;
+            align-self: flex-start;
+        }
+        .typing-indicator {
+            display: flex;
+        }
+        .typing-indicator > div {
+            width: 8px;
+            height: 8px;
+            background-color: #ccc;
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: typing 1.2s infinite;
+        }
+        .typing-indicator > div:nth-child(1) {
+            animation-delay: 0s;
+        }
+        .typing-indicator > div:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator > div:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: initial;
+                opacity: 0.3;
+            }
+            30% {
+                transform: translateY(-6px);
+                opacity: 1;
+            }
+        }
+        .delete-button-container {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #ccc;
+        }
+        .delete-history-button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #b0b0b0;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="delete-button-container">
+            <button class="delete-history-button" onclick="deleteHistory()">Delete History</button>
+        </div>
+        <div class="messages" id="messages">
+            <!-- Messages will appear here -->
+        </div>
+        <div class="input-container">
+            <textarea id="message-input" rows="1" placeholder="Type a message"></textarea>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("message-input").addEventListener("keyup", function(event) {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            } else {
+                adjustTextareaHeight();
+            }
+        });
+
+        function adjustTextareaHeight() {
+            const textarea = document.getElementById("message-input");
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById("message-input");
+            const message = messageInput.value.trim();
+            if (message === "") return;
+
+            const messagesContainer = document.getElementById("messages");
+
+            // Display user's message
+            const userMessageDiv = document.createElement("div");
+            userMessageDiv.classList.add("message", "user");
+            userMessageDiv.innerHTML = `${message}<div class="timestamp">${new Date().toLocaleString([], {hour: '2-digit', minute: '2-digit', hour12: false})}</div>`;
+            messagesContainer.appendChild(userMessageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            messageInput.value = "";
+            adjustTextareaHeight();
+
+            // Display typing indicator
+            const typingIndicator = document.createElement("div");
+            typingIndicator.classList.add("message", "typing");
+            typingIndicator.innerHTML = '<div class="typing-indicator"><div></div><div></div><div></div></div>';
+            messagesContainer.appendChild(typingIndicator);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Send message to the backend
+            fetch('/send_message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove typing indicator
+                messagesContainer.removeChild(typingIndicator);
+
+                // Display bot's response
+                const botMessageDiv = document.createElement("div");
+                botMessageDiv.classList.add("message", "bot");
+                botMessageDiv.innerHTML = `${data.response.message}<div class="timestamp">${data.response.timestamp}</div>`;
+                messagesContainer.appendChild(botMessageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            });
+        }
+
+        function loadChatHistory() {
+            fetch('/get_chat_history')
+            .then(response => response.json())
+            .then(data => {
+                const messagesContainer = document.getElementById("messages");
+                data.forEach(msg => {
+                    const messageDiv = document.createElement("div");
+                    messageDiv.classList.add("message", msg.sender);
+                    messageDiv.innerHTML = `${msg.message}<div class="timestamp">${msg.timestamp}</div>`;
+                    messagesContainer.appendChild(messageDiv);
+                });
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            });
+        }
+
+        function deleteHistory() {
+            fetch('/delete_history', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(() => {
+                const messagesContainer = document.getElementById("messages");
+                messagesContainer.innerHTML = '';
+            });
+        }
+
+        window.onload = loadChatHistory;
+    </script>
+</body>
+</html>
